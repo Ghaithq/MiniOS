@@ -2,6 +2,8 @@
 
 void clearResources(int);
 
+
+
 int main(int argc, char * argv[])
 {
     signal(SIGINT, clearResources);
@@ -27,6 +29,20 @@ int main(int argc, char * argv[])
     if(fork()==0)
         execv("./clk",argv);
 
+    //------------------Creating a shm with Scheduler------------------//
+    int PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0644);
+    if ((long)PG_S_shmid == -1)
+    {
+        perror("Error in creating shm between process generator and sched!\n");
+        exit(-1);
+    }
+    struct processData* PG_S_shmaddr = shmat(PG_S_shmid, (void *)0, 0);
+    if ((long)PG_S_shmaddr == -1)
+    {
+        perror("Error in attaching the shm  between process generator and sched!\n");
+        exit(-1);
+    }
+    (*PG_S_shmaddr).id=-1;
     //------------------processing data from file------------------//
     initClk();
     // To get time use this
@@ -54,8 +70,16 @@ int main(int argc, char * argv[])
         if(feof(pFile))
             break;
         while(process.arrivaltime!=getClk());
+        (*PG_S_shmaddr)=process;
         //waiting for the arrival time to send data
         //Data is supposed to be sent here
+
+
+
+        // sendVal=msgsnd(Schedmsgqid,&msgSched,sizeof(struct msgbuffSched),!IPC_NOWAIT);
+        // if(sendVal==-1)
+        //     printf("an error occured sending data from Process Generator to Scheduler\n");
+
         printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
     }
     // TODO Generation Main Loop

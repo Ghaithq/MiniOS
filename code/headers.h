@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 #include "PriorityQueue.h"
 
 typedef short bool;
@@ -16,6 +17,7 @@ typedef short bool;
 #define false 0
 
 #define SHKEY 300
+#define SHKEY_PG_S 37
 
 
 struct processData
