@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-
+/// @brief /////alooooooo
 struct PCB
 {
     int priority;
