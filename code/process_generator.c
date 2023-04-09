@@ -6,7 +6,11 @@ void clearResources(int);
 
 int main(int argc, char * argv[])
 {
-    signal(SIGINT, clearResources);
+    //signal(SIGINT, clearResources);
+
+
+
+    
     // TODO Initialization
     // 1. Read the input files.
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
@@ -71,22 +75,15 @@ int main(int argc, char * argv[])
             break;
         while(process.arrivaltime!=getClk());
         (*PG_S_shmaddr)=process;
-        //waiting for the arrival time to send data
-        //Data is supposed to be sent here
-
-
-
-        // sendVal=msgsnd(Schedmsgqid,&msgSched,sizeof(struct msgbuffSched),!IPC_NOWAIT);
-        // if(sendVal==-1)
-        //     printf("an error occured sending data from Process Generator to Scheduler\n");
 
         printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
     }
+    while(1);
     // TODO Generation Main Loop
     // 5. Create a data structure for processes and provide it with its parameters.
     // 6. Send the information to the scheduler at the appropriate time.
     // 7. Clear clock resources
-    destroyClk(true);
+    //destroyClk(true);
 }
 
 void clearResources(int signum)

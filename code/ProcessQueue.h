@@ -5,9 +5,11 @@ struct PCB
 {
     int priority;
     int id;
+    int PID;
     int remaingTime;
     int executionTime;
     char state;
+    int arrivalTime;
     int waitingTime;
 };
 
