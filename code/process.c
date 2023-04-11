@@ -6,7 +6,6 @@ int remainingtime;
 int main(int agrc, char * argv[])
 {
     initClk();
-    printf("asjdnkdfjnvkdfjnvdkfvndfkvndfkjnv\n");
     //TODO it needs to get the remaining time from somewhere
     //remainingtime = ??;
     int prevClk=getClk();

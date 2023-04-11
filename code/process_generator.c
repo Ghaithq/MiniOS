@@ -29,26 +29,26 @@ int main(int argc, char * argv[])
 
     //------------------Creating clock and scheduling processes----------------//
     if(fork()==0)
-        execv("./scheduler",&algorithmAddress);
-    if(fork()==0)
         execv("./clk",argv);
+    initClk();
+    if(fork()==0)
+        execv("./scheduler",&algorithmAddress);
 
     //------------------Creating a shm with Scheduler------------------//
-    int PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0644);
+    int PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0666);
     if ((long)PG_S_shmid == -1)
     {
         perror("Error in creating shm between process generator and sched!\n");
         exit(-1);
     }
     struct processData* PG_S_shmaddr = shmat(PG_S_shmid, (void *)0, 0);
+    (*PG_S_shmaddr).id=-1;
     if ((long)PG_S_shmaddr == -1)
     {
         perror("Error in attaching the shm  between process generator and sched!\n");
         exit(-1);
     }
-    (*PG_S_shmaddr).id=-1;
     //------------------processing data from file------------------//
-    initClk();
     // To get time use this
     int x = getClk();
 
@@ -89,4 +89,5 @@ int main(int argc, char * argv[])
 void clearResources(int signum)
 {
     //TODO Clears all resources in case of interruption
+
 }
