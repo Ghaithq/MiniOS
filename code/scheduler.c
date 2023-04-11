@@ -116,10 +116,10 @@ void SRTN()
             printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
         }
     }
-    
 
+    // if(runningProcess.id!=-1||Processes.Head||Processes.Head->process.remaingTime<runningProcess.remaingTime)
 
-    }
+    // }
     
 }
 
