@@ -2,6 +2,11 @@
 
 void clearResources(int);
 
+struct msgBuffDummy
+{
+    char x[1];
+    int mtype;
+};
 
 
 int main(int argc, char * argv[])
@@ -33,6 +38,7 @@ int main(int argc, char * argv[])
     initClk();
     if(fork()==0)
         execv("./scheduler",&algorithmAddress);
+    
 
     //------------------Creating a shm with Scheduler------------------//
     int PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0666);
@@ -53,6 +59,12 @@ int main(int argc, char * argv[])
     int x = getClk();
 
 
+    //------------------creating a msgq between process gen and sched------------------//
+    key_t key_id=ftok("keyfile",MSGKEY_PG_S);
+    int PG_S_msgqid=msgget(key_id,0666 | IPC_CREAT);
+
+
+
 
 
     FILE* pFile=fopen("processes.txt","r");
@@ -60,6 +72,11 @@ int main(int argc, char * argv[])
     struct processData process;
     if(pFile==NULL)
         printf("couldn't open file");
+
+    struct msgBuffDummy dummy;
+    dummy.mtype=0;
+    dummy.x[1]='c';
+
     int p;
     while(1)
     {
@@ -76,6 +93,9 @@ int main(int argc, char * argv[])
             break;
         while(process.arrivaltime!=getClk());
         (*PG_S_shmaddr)=process;
+        msgrcv(PG_S_msgqid,&dummy,sizeof(dummy),0,!IPC_NOWAIT);
+        //usleep(1000);
+
         printf("*PG_S_shmaddr.id=%d\n",(*PG_S_shmaddr).id);
         printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
     }

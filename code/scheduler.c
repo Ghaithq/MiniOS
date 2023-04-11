@@ -5,6 +5,8 @@ struct processData *PG_S_shmaddr; // address of PG_S_shmid
 int prevID = -1;                  // used to check if memory changed
 struct PCB runningProcess;
 int PID;
+int PG_S_msgqid;
+
 void childHandler()
 {
     runningProcess.id = -1;
@@ -12,6 +14,12 @@ void childHandler()
     int status;
     wait(&status);
 }
+
+struct msgBuffDummy
+{
+    char x[1];
+    int mtype;
+};
 
 void HPF()
 {
@@ -24,21 +32,26 @@ void HPF()
     int sumProcesses = 0;
     //(*PG_S_shmaddr).id = -1;
     //prevID=-1;
+    struct msgBuffDummy dummy;
+    dummy.mtype=0;
+    dummy.x[1]='c';
+    struct processData tempPD; 
     while (1)
     {
         // scheduling incoming new processes
-
         int waitingTime = 0;
-
         while ((*PG_S_shmaddr).id != prevID)
         {
-            printf("arrived ID=%d, running time=%d\n", (*PG_S_shmaddr).id, (*PG_S_shmaddr).runningtime);
-            prevID = (*PG_S_shmaddr).id;
-            newProcess.priority = (*PG_S_shmaddr).priority;
-            newProcess.remaingTime = (*PG_S_shmaddr).runningtime;
-            newProcess.id = (*PG_S_shmaddr).id;
+            tempPD=*PG_S_shmaddr;
+            if(-1==msgsnd(PG_S_msgqid,&dummy,sizeof(dummy),IPC_NOWAIT))
+                printf("error happened in recv\n");
+            printf("arrived ID=%d, running time=%d\n", tempPD.id, tempPD.runningtime);
+            prevID = tempPD.id;
+            newProcess.priority = tempPD.priority;
+            newProcess.remaingTime = tempPD.runningtime;
+            newProcess.id = tempPD.id;
             newProcess.state = 'W';
-            newProcess.arrivalTime = (*PG_S_shmaddr).arrivaltime;
+            newProcess.arrivalTime = tempPD.arrivaltime;
             newProcess.arrivalTime;
             priorityEnqueue(&processesPQ, newProcess, newProcess.priority);
         }
@@ -79,6 +92,10 @@ void SRTN()
     runningProcess.id = -1;
     prevID = -1;
     struct PCB newProcess;
+    struct msgBuffDummy dummy;
+    dummy.mtype=0;
+    dummy.x[1]='c';
+    struct processData tempPD;
     while (1)
     {
 
@@ -90,12 +107,15 @@ void SRTN()
         
         while ((*PG_S_shmaddr).id != prevID)
         {//////////a lock must be put on the shared memory because if more than one process arrived at the same time
+            tempPD=*PG_S_shmaddr;
+            if(-1==msgsnd(PG_S_msgqid,&dummy,sizeof(dummy),IPC_NOWAIT))
+                printf("error happened in recv\n");
             printf("arrived ID=%d, running time=%d\n", (*PG_S_shmaddr).id, (*PG_S_shmaddr).runningtime);
             struct PCB newProcess;
-            newProcess.arrivalTime = (*PG_S_shmaddr).arrivaltime;
-            newProcess.id = (*PG_S_shmaddr).id;
-            newProcess.priority = (*PG_S_shmaddr).priority;
-            newProcess.remaingTime = (*PG_S_shmaddr).runningtime;
+            newProcess.arrivalTime = tempPD.arrivaltime;
+            newProcess.id = tempPD.id;
+            newProcess.priority = tempPD.priority;
+            newProcess.remaingTime = tempPD.runningtime;
 
             newProcess.state='W';
             priorityEnqueue(&Processes,newProcess,newProcess.remaingTime);
@@ -177,6 +197,11 @@ int main(int argc, char *argv[])
     }
     initClk();
     prevID = -1;
+
+
+    key_t key_id=ftok("keyfile",MSGKEY_PG_S);
+    PG_S_msgqid=msgget(key_id,0666 | IPC_CREAT);
+
 
     //HPF();
     if (*argv[0] == '1')
