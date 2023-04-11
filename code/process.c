@@ -10,6 +10,7 @@ int main(int agrc, char * argv[])
     //remainingtime = ??;
     int prevClk=getClk();
     remainingtime=(int)(*argv[0]);
+    printf("started process\n");
     while (remainingtime > 0 )
     {
         // remainingtime = ??;

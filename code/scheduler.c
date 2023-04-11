@@ -17,9 +17,6 @@ void childHandler()
 
 void HPF()
 {
-
-
-    //the problem is starting scheduler whilst the queue is empty
     struct PriorityQueue processesPQ; 
     InitPriorityQueue(&processesPQ);
     struct PCB newProcess;
@@ -33,11 +30,6 @@ void HPF()
 
         int waitingTime=0;
 
-        //data for running process
-        //struct PCB arr[3];
-        
-        //printf("prevID=%d, *PG_S_shmaddr).id=%d\n",prevID,(*PG_S_shmaddr).id);
-        //initClk();
         if((*PG_S_shmaddr).id!=prevID)
         {
             printf("arrived ID=%d, running time=%d\n",(*PG_S_shmaddr).id,(*PG_S_shmaddr).runningtime);
@@ -48,36 +40,29 @@ void HPF()
             newProcess.state='W';
             newProcess.arrivalTime=(*PG_S_shmaddr).arrivaltime;
             newProcess.arrivalTime;
-            priorityEnqueue(&processesPQ,newProcess,newProcess.priority);
-            //priorityPrint(&processesPQ);
-            
+            priorityEnqueue(&processesPQ,newProcess,newProcess.priority);   
         }
-        //printf("runningProcessID=%d\n",runningProcess.id);
+
+
+
+
         if(runningProcess.id==-1)
         {
-            printf("i am count of PQ:%d\n",processesPQ.count);
             struct PCB* tempProcess=priorityDequeue(&processesPQ);
 
             if(tempProcess)
             {
-                printf("temp is not null\n");
                 runningProcess=*tempProcess;
                 char runTime=runningProcess.remaingTime;
                 char* runtimeAddress=&runTime;
                 int PID=fork();
-                printf("%d\n",runningProcess.remaingTime);
                 if(PID==0)
                 {
-                    char* cmd[2]={runtimeAddress,NULL};
-                    printf("created fork \n");
-                    if((int)*runtimeAddress!=runningProcess.remaingTime)
-                        printf("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\n");
-                    int check1=execv("./process",&runtimeAddress);
+                    int check1=execl("./process",runtimeAddress,NULL);
                     if(check1==-1)
                         printf("unsuccessful execv with error%d\n",errno);
                     printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
                 }
-                printf("I am PID:%d\n",PID);
                 runningProcess.PID=PID;
                 runningProcess.state='R';
                 runningProcess.arrivalTime;                
@@ -110,19 +95,10 @@ int main(int argc, char * argv[])
     }
     initClk();
     prevID=-1;
-    // while(1)
-    // {
-    //     if(prevID!=(*PG_S_shmaddr).id)
-    //     {
-    //         printf("arrived ID=%d, running time=%d\n",(*PG_S_shmaddr).id,(*PG_S_shmaddr).runningtime);
-    //         prevID=(*PG_S_shmaddr).id;
-    //     }
-    // }
-    //if(*argv[1]=='1')
+
+    if(*argv[1]=='1')
         HPF();
-    
-    //upon termination release the clock resources.
-    //while(1);
+
 
     destroyClk(true);
 }
