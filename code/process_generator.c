@@ -63,6 +63,7 @@ int main(int argc, char * argv[])
     int p;
     while(1)
     {
+
         fscanf(pFile,"%d",&p);
         process.id=p;
         fscanf(pFile,"%d",&p);
@@ -75,7 +76,7 @@ int main(int argc, char * argv[])
             break;
         while(process.arrivaltime!=getClk());
         (*PG_S_shmaddr)=process;
-
+        printf("*PG_S_shmaddr.id=%d\n",(*PG_S_shmaddr).id);
         printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
     }
     while(1);
