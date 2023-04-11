@@ -83,7 +83,29 @@ void HPF()
 
 void SRTN()
 {
-    
+struct PriorityQueue processes;
+struct PCB newProcess;
+int prevID=-1;
+while(1)
+{
+if(*(PG_S_shmaddr).id!=prevID)
+{
+            printf("arrived ID=%d, running time=%d\n",(*PG_S_shmaddr).id,(*PG_S_shmaddr).runningtime);
+            prevID=(*PG_S_shmaddr).id;
+            newProcess.priority=(*PG_S_shmaddr).priority;
+            newProcess.remaingTime=(*PG_S_shmaddr).runningtime;
+            newProcess.id=(*PG_S_shmaddr).id;
+            newProcess.state='W';
+            newProcess.arrivalTime=(*PG_S_shmaddr).arrivaltime;
+            priorityEnqueue(&processesPQ,newProcess,newProcess.priority);
+
+}
+
+
+
+
+
+}
 }
 int main(int argc, char * argv[])
 {
