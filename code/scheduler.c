@@ -9,9 +9,13 @@ int PG_S_msgqid;
 
 void childHandler()
 {
-    runningProcess.id = -1;
-    printf("PID of child:%d\n", runningProcess.PID);
+     printf("PID of child:%d\n", runningProcess.PID);
     int status;
+    int TA=getClk()-runningProcess.arrivalTime;
+    float value = ((float)(TA))/runningProcess.executionTime;
+    float WTA = ((int)(value * 100 + .5) / 100.0);
+   // fprintf(outputFile,"At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,0,runningProcess.waitingTime,TA,WTA);
+    runningProcess.id = -1;
     wait(&status);
 }
 
@@ -31,19 +35,19 @@ void HPF()
     double turnaroundSum = 0;
     int sumProcesses = 0;
     //(*PG_S_shmaddr).id = -1;
-    //prevID=-1;
+    // prevID=-1;
     struct msgBuffDummy dummy;
-    dummy.mtype=0;
-    dummy.x[1]='c';
-    struct processData tempPD; 
+    dummy.mtype = 0;
+    dummy.x[1] = 'c';
+    struct processData tempPD;
     while (1)
     {
         // scheduling incoming new processes
         int waitingTime = 0;
         while ((*PG_S_shmaddr).id != prevID)
         {
-            tempPD=*PG_S_shmaddr;
-            if(-1==msgsnd(PG_S_msgqid,&dummy,sizeof(dummy),IPC_NOWAIT))
+            tempPD = *PG_S_shmaddr;
+            if (-1 == msgsnd(PG_S_msgqid, &dummy, sizeof(dummy), IPC_NOWAIT))
                 printf("error happened in recv\n");
             printf("arrived ID=%d, running time=%d\n", tempPD.id, tempPD.runningtime);
             prevID = tempPD.id;
@@ -62,13 +66,14 @@ void HPF()
 
             if (tempProcess)
             {
-                printf("priority of running process: %d\n",tempProcess->priority);
+                printf("priority of running process: %d\n", tempProcess->priority);
                 runningProcess = *tempProcess;
                 char runTime = runningProcess.remaingTime;
                 char *runtimeAddress = &runTime;
                 int PID = fork();
                 if (PID == 0)
                 {
+                    printf("lmaoooooooooo\n");
                     int check1 = execl("./process", runtimeAddress, NULL);
                     if (check1 == -1)
                         printf("unsuccessful execv with error%d\n", errno);
@@ -79,6 +84,7 @@ void HPF()
                 runningProcess.arrivalTime;
                 runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
                 waitingSum += runningProcess.waitingTime;
+                printf("current running process id: %d, pid: %d \n", runningProcess.id, PID);
             }
         }
     }
@@ -88,13 +94,13 @@ void SRTN()
 {
     struct PriorityQueue Processes;
     InitPriorityQueue(&Processes);
-    int prevClk=getClk();
+    int prevClk = getClk();
     runningProcess.id = -1;
     prevID = -1;
     struct PCB newProcess;
     struct msgBuffDummy dummy;
-    dummy.mtype=0;
-    dummy.x[1]='c';
+    dummy.mtype = 0;
+    dummy.x[1] = 'c';
     struct processData tempPD;
     while (1)
     {
@@ -104,11 +110,10 @@ void SRTN()
         //     runningProcess.remaingTime--;
         //     prevClk=getClk();
         // }
-        
         while ((*PG_S_shmaddr).id != prevID)
-        {//////////a lock must be put on the shared memory because if more than one process arrived at the same time
-            tempPD=*PG_S_shmaddr;
-            if(-1==msgsnd(PG_S_msgqid,&dummy,sizeof(dummy),IPC_NOWAIT))
+        { //////////a lock must be put on the shared memory because if more than one process arrived at the same time
+            tempPD = *PG_S_shmaddr;
+            if (-1 == msgsnd(PG_S_msgqid, &dummy, sizeof(dummy), IPC_NOWAIT))
                 printf("error happened in recv\n");
             printf("arrived ID=%d, running time=%d\n", (*PG_S_shmaddr).id, (*PG_S_shmaddr).runningtime);
             struct PCB newProcess;
@@ -117,24 +122,20 @@ void SRTN()
             newProcess.priority = tempPD.priority;
             newProcess.remaingTime = tempPD.runningtime;
 
-            newProcess.state='W';
-            priorityEnqueue(&Processes,newProcess,newProcess.remaingTime);
+            newProcess.state = 'W';
+            priorityEnqueue(&Processes, newProcess, newProcess.remaingTime);
             prevID = newProcess.id;
-
-
-            
         }
 
-
-        if(runningProcess.id==-1)
+        if (runningProcess.id == -1)
         {
-            //printf("-----------------------------------------------------\n");
-            struct PCB* processPtr = priorityDequeue(&Processes);
-            if(processPtr)
+            // printf("-----------------------------------------------------\n");
+            struct PCB *processPtr = priorityDequeue(&Processes);
+            if (processPtr)
             {
 
                 runningProcess = *processPtr;
-                if(runningProcess.state=='W')
+                if (runningProcess.state == 'W')
                 {
                     runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
                     char runTime = runningProcess.remaingTime;
@@ -142,39 +143,111 @@ void SRTN()
                     int PID = fork();
                     if (PID == 0)
                     {
-                            int check1 = execl("./process", runtimeAddress, NULL);
-                            if (check1 == -1)
-                                printf("unsuccessful execv with error%d\n", errno);
-                        
+                        int check1 = execl("./process", runtimeAddress, NULL);
+                        if (check1 == -1)
+                            printf("unsuccessful execv with error%d\n", errno);
                     }
                     runningProcess.PID = PID;
                     runningProcess.state = 'R';
                     printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
                 }
-                else if(runningProcess.state=='S')
+                else if (runningProcess.state == 'S')
                 {
-                    runningProcess.state='R';
-                    kill(runningProcess.PID,SIGCONT);
-                    printf("resumed process id:%d , PID:%d\n",runningProcess.id,runningProcess.PID);
+                    runningProcess.state = 'R';
+                    kill(runningProcess.PID, SIGCONT);
+                    printf("resumed process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
                 }
             }
         }
 
-        if(runningProcess.id!=-1&&Processes.Head&&Processes.Head->process.remaingTime<runningProcess.remaingTime)
+        if (runningProcess.id != -1 && Processes.Head && Processes.Head->process.remaingTime < runningProcess.remaingTime)
         {
             printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
-            runningProcess.state='S';
-            kill(runningProcess.PID,SIGSTOP);
-            priorityEnqueue(&Processes,runningProcess,runningProcess.remaingTime);
-            printf("paused process id:%d , PID:%d\n",runningProcess.id,runningProcess.PID);
-            runningProcess.id=-1;
-
+            runningProcess.state = 'S';
+            kill(runningProcess.PID, SIGSTOP);
+            priorityEnqueue(&Processes, runningProcess, runningProcess.remaingTime);
+            printf("paused process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
+            runningProcess.id = -1;
         }
-
     }
-    
 }
 
+void RR()
+{
+    struct Queue RR_Queue = {NULL, NULL, 0};
+    int RR_TimeSlice = 4;
+    struct processData currPD;
+    struct msgBuffDummy _buffer = {'c', 0};
+    struct PCB _pcb;
+    int stat_loc;
+    int _pid;
+    int _prevCLK;
+    runningProcess.id = -1;
+    int clk;
+    while (1)
+    {
+        // Adding a process to the round robin queue
+
+        if ((*PG_S_shmaddr).id != prevID)
+        {
+            currPD = *PG_S_shmaddr;
+            if(msgsnd(PG_S_msgqid, &_buffer, sizeof(_buffer), !IPC_NOWAIT)==-1)
+             printf("error happened in recv\n");
+            _pcb.priority = currPD.priority;
+            _pcb.id = currPD.id;
+            _pcb.remaingTime = currPD.runningtime;
+            _pcb.state = 'W';
+            _pcb.arrivalTime = currPD.arrivaltime;
+            printf("Arrival time: %d\n", currPD.arrivaltime);
+            enqueue(&RR_Queue, _pcb);
+            prevID = currPD.id;
+        }
+        if (RR_Queue.count != 0)
+        {
+            if (runningProcess.id == -1)
+            {
+
+                runningProcess = *dequeue(&RR_Queue);
+                if (runningProcess.state == 'W')
+                {
+
+                    runningProcess.executionTime = getClk();
+                    runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
+                    _prevCLK = getClk();
+                    int PID = fork();
+                    if (PID == 0)
+                    {
+                        int check1 = execl("./process", (char *)&runningProcess.remaingTime, NULL);
+                        if (check1 == -1)
+                            printf("Unsuccessful execl with error%d\n", errno);
+                    }
+                    runningProcess.PID = PID;
+                    runningProcess.state = 'R';
+                    printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
+                }
+                else if (runningProcess.state == 'S')
+                {
+                    runningProcess.state = 'R';
+                    kill(runningProcess.PID, SIGCONT);
+                    printf("resumed process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
+                }
+            }
+            else
+            {
+                clk = getClk();
+                if (clk - _prevCLK == RR_TimeSlice)
+                {
+                    runningProcess.state = 'S';
+                    kill(runningProcess.PID, SIGSTOP);
+                    enqueue(&RR_Queue, runningProcess);
+                    runningProcess.id = -1;
+                    printf("\nSwitching process..........\n");
+                    _prevCLK = clk;
+                }
+            }
+        }
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -198,15 +271,16 @@ int main(int argc, char *argv[])
     initClk();
     prevID = -1;
 
+    key_t key_id = ftok("keyfile", MSGKEY_PG_S);
+    PG_S_msgqid = msgget(key_id, 0666 | IPC_CREAT);
 
-    key_t key_id=ftok("keyfile",MSGKEY_PG_S);
-    PG_S_msgqid=msgget(key_id,0666 | IPC_CREAT);
-
-
-    //HPF();
+    // HPF();
     if (*argv[0] == '1')
         HPF();
-    else if(*argv[0] == '2')
+    else if (*argv[0] == '2')
         SRTN();
+    else if (*argv[0] == '3')
+        RR();
+
     destroyClk(true);
 }
