@@ -1,6 +1,24 @@
 #include "headers.h"
+int PG_S_shmid;
+int PG_S_msgqid;
 
-void clearResources(int);
+
+void clearResources()
+{
+    //TODO Clears all resources in case of interruption
+    if(-1 == (shmctl(PG_S_shmid, IPC_RMID, NULL)))
+    {   
+        perror("shmctl");
+    }         
+    if(-1 == (msgctl(PG_S_msgqid, IPC_RMID, NULL)))
+    {   
+        printf("error in deleting msgq\n");
+    } 
+
+    killpg(getpgrp(),SIGINT);
+    exit(0);
+}
+
 
 struct msgBuffDummy
 {
@@ -9,9 +27,11 @@ struct msgBuffDummy
 };
 
 
+
+
 int main(int argc, char * argv[])
 {
-    //signal(SIGINT, clearResources);
+    signal(SIGINT, clearResources);
 
 
 
@@ -22,6 +42,7 @@ int main(int argc, char * argv[])
     // 3. Initiate and create the scheduler and clock processes.
     // 4. Use this function after creating the clock process to initialize clock
     //------------------for the chosen scheduling algorithm---------------//
+    //signal(SIGINT,clearResources);
     printf("choose a scheduling algorithm:\n");
     printf("1-Highest Priority First\n");
     printf("2-Shortest Remaining Time Next\n");
@@ -41,7 +62,7 @@ int main(int argc, char * argv[])
     
 
     //------------------Creating a shm with Scheduler------------------//
-    int PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0666);
+    PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0666);
     if ((long)PG_S_shmid == -1)
     {
         perror("Error in creating shm between process generator and sched!\n");
@@ -61,7 +82,7 @@ int main(int argc, char * argv[])
 
     //------------------creating a msgq between process gen and sched------------------//
     key_t key_id=ftok("keyfile",MSGKEY_PG_S);
-    int PG_S_msgqid=msgget(key_id,0666 | IPC_CREAT);
+    PG_S_msgqid=msgget(key_id,0666 | IPC_CREAT);
 
 
 
@@ -110,10 +131,4 @@ int main(int argc, char * argv[])
     // 6. Send the information to the scheduler at the appropriate time.
     // 7. Clear clock resources
     //destroyClk(true);
-}
-
-void clearResources(int signum)
-{
-    //TODO Clears all resources in case of interruption
-
 }
