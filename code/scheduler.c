@@ -6,18 +6,55 @@ int prevID = -1;                  // used to check if memory changed
 struct PCB runningProcess;
 int PID;
 int PG_S_msgqid;
+FILE *outputFile;
+struct floatQueue WTAqueue;
+float WTASum=0;
+float waitingSum = 0;
 
 void childHandler()
 {
-     printf("PID of child:%d\n", runningProcess.PID);
+    printf("PID of child:%d\n", runningProcess.PID);
     int status;
     int TA=getClk()-runningProcess.arrivalTime;
     float value = ((float)(TA))/runningProcess.executionTime;
     float WTA = ((int)(value * 100 + .5) / 100.0);
-   // fprintf(outputFile,"At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,0,runningProcess.waitingTime,TA,WTA);
+    WTASum+=WTA;
+    waitingSum+=runningProcess.waitingTime;
+    floatEnqueue(&WTAqueue,WTA);
+    fprintf(outputFile,"At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,0,runningProcess.waitingTime,TA,WTA);
     runningProcess.id = -1;
     wait(&status);
 }
+
+void exitHandler()
+{
+
+    int count=WTAqueue.count;
+    floatPrint(&WTAqueue);
+    float avgWTA=WTASum/count;
+    float avgWaiting=waitingSum/count;
+    float stdWTA=0;
+    for(int i=0;i<count;i++)
+    {
+        float x=*floatDequeue(&WTAqueue);
+        stdWTA+=((x-avgWTA)*(x-avgWTA));
+    }
+    stdWTA/=(count-1);
+    stdWTA=sqrt((double)stdWTA);
+    FILE* averageFile=fopen("scheduler.perf","w");
+    fprintf(averageFile,"CPU utilization = 100%% \n");
+    fprintf(averageFile,"Avg WTA = %f\n",avgWTA);
+    fprintf(averageFile,"Avg Waiting = %f\n",avgWaiting);
+    fprintf(averageFile,"Std WTA == %f\n",stdWTA);
+    
+    
+
+    fclose(averageFile);
+    fclose(outputFile);
+    destroyClk(true);
+    raise(SIGKILL);
+}
+
 
 struct msgBuffDummy
 {
@@ -31,15 +68,15 @@ void HPF()
     InitPriorityQueue(&processesPQ);
     struct PCB newProcess;
     runningProcess.id = -1;
-    double waitingSum = 0;
     double turnaroundSum = 0;
     int sumProcesses = 0;
     //(*PG_S_shmaddr).id = -1;
     // prevID=-1;
     struct msgBuffDummy dummy;
-    dummy.mtype = 0;
-    dummy.x[1] = 'c';
-    struct processData tempPD;
+    dummy.mtype=0;
+    dummy.x[1]='c';
+
+    struct processData tempPD; 
     while (1)
     {
         // scheduling incoming new processes
@@ -57,7 +94,9 @@ void HPF()
             newProcess.state = 'W';
             newProcess.arrivalTime = tempPD.arrivaltime;
             newProcess.arrivalTime;
+            newProcess.executionTime=tempPD.runningtime;
             priorityEnqueue(&processesPQ, newProcess, newProcess.priority);
+            usleep(1);
         }
 
         if (runningProcess.id == -1)
@@ -83,8 +122,8 @@ void HPF()
                 runningProcess.state = 'R';
                 runningProcess.arrivalTime;
                 runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
-                waitingSum += runningProcess.waitingTime;
-                printf("current running process id: %d, pid: %d \n", runningProcess.id, PID);
+                //waitingSum += runningProcess.waitingTime;
+                fprintf(outputFile,"At time %d process %d started arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
             }
         }
     }
@@ -105,11 +144,13 @@ void SRTN()
     while (1)
     {
 
-        //  if(prevClk<getClk() && runningProcess.id!=-1)
-        // {
-        //     runningProcess.remaingTime--;
-        //     prevClk=getClk();
-        // }
+        
+        if(prevClk<getClk() && runningProcess.id!=-1)
+        {
+            runningProcess.remaingTime--;
+            prevClk=getClk();
+        }
+
         while ((*PG_S_shmaddr).id != prevID)
         { //////////a lock must be put on the shared memory because if more than one process arrived at the same time
             tempPD = *PG_S_shmaddr;
@@ -121,10 +162,12 @@ void SRTN()
             newProcess.id = tempPD.id;
             newProcess.priority = tempPD.priority;
             newProcess.remaingTime = tempPD.runningtime;
-
-            newProcess.state = 'W';
-            priorityEnqueue(&Processes, newProcess, newProcess.remaingTime);
+            newProcess.executionTime=tempPD.runningtime;
+            newProcess.state='W';
+            priorityEnqueue(&Processes,newProcess,newProcess.remaingTime);
             prevID = newProcess.id;
+
+            usleep(1);
         }
 
         if (runningProcess.id == -1)
@@ -150,25 +193,37 @@ void SRTN()
                     runningProcess.PID = PID;
                     runningProcess.state = 'R';
                     printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
+                    fprintf(outputFile,"At time %d process %d started arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+
                 }
                 else if (runningProcess.state == 'S')
                 {
-                    runningProcess.state = 'R';
-                    kill(runningProcess.PID, SIGCONT);
-                    printf("resumed process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
+                    //while(prevClk==getClk());
+                    runningProcess.state='R';
+                    kill(runningProcess.PID,SIGCONT);
+                    runningProcess.waitingTime+=getClk()-runningProcess.lastStopped;
+                    printf("resumed process id:%d , PID:%d\n",runningProcess.id,runningProcess.PID);
+                    fprintf(outputFile,"At time %d process %d resumed arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+
                 }
             }
         }
 
         if (runningProcess.id != -1 && Processes.Head && Processes.Head->process.remaingTime < runningProcess.remaingTime)
         {
+            fprintf(outputFile,"At time %d process %d stopped arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+
             printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
-            runningProcess.state = 'S';
-            kill(runningProcess.PID, SIGSTOP);
-            priorityEnqueue(&Processes, runningProcess, runningProcess.remaingTime);
-            printf("paused process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
-            runningProcess.id = -1;
+            runningProcess.state='S';
+            runningProcess.lastStopped=getClk();
+            kill(runningProcess.PID,SIGSTOP);
+            priorityEnqueue(&Processes,runningProcess,runningProcess.remaingTime);
+            printf("paused process id:%d , PID:%d\n",runningProcess.id,runningProcess.PID);
+            runningProcess.id=-1;
+
         }
+        
+
     }
 }
 
@@ -252,7 +307,9 @@ void RR()
 int main(int argc, char *argv[])
 {
     // initClk();
+    floatQueueInit(&WTAqueue);
     signal(SIGUSR1, childHandler);
+    signal(SIGINT,exitHandler);
     printf("%c\n", *argv[0]);
 
     //------------------Creating a shm with Scheduler------------------//
@@ -274,13 +331,20 @@ int main(int argc, char *argv[])
     key_t key_id = ftok("keyfile", MSGKEY_PG_S);
     PG_S_msgqid = msgget(key_id, 0666 | IPC_CREAT);
 
-    // HPF();
+    key_t key_id=ftok("keyfile",MSGKEY_PG_S);
+    PG_S_msgqid=msgget(key_id,0666 | IPC_CREAT);
+
+    outputFile=fopen("scheduler.log","w");
+    if(outputFile==NULL)
+        printf("NULL\n");
+    //fprintf(outputFile,"kdksjvbdkjfbvkdfjbvkdfba.jdfnv,dskfjvbs,djhfvb\n");
+
+   // HPF();
+
     if (*argv[0] == '1')
         HPF();
     else if (*argv[0] == '2')
         SRTN();
-    else if (*argv[0] == '3')
-        RR();
-
+    fclose(outputFile);
     destroyClk(true);
 }
