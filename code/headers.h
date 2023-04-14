@@ -11,7 +11,8 @@
 #include <signal.h>
 #include <errno.h>
 #include <time.h>
-#include "PriorityQueue.h"
+#include <math.h>
+#include "IntQueue.h"
 
 
 

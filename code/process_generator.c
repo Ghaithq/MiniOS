@@ -65,13 +65,18 @@ int main(int argc, char * argv[])
 
 
 
-
+    
 
     FILE* pFile=fopen("processes.txt","r");
     printf("current time is %d\n", x);
     struct processData process;
     if(pFile==NULL)
         printf("couldn't open file");
+    
+    struct Queue processesQ;
+    ProcessQueueInit(&processesQ);
+
+
 
     struct msgBuffDummy dummy;
     dummy.mtype=0;

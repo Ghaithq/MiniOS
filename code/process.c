@@ -13,13 +13,14 @@ int main(int agrc, char * argv[])
     printf("started process\n");
     while (remainingtime > 0 )
     {
-        // remainingtime = ??;
-        if(prevClk<getClk())
-        {
-            printf("PID=%d ,remaining Time=%d\n",getpid(),remainingtime);
+        prevClk=getClk();
+        while(prevClk==getClk());
+        if(prevClk==getClk()-1){
+            printf("PID=%d ,remaining Time=%d, current clock=%d, prevClk=%d\n",getpid(),remainingtime,getClk(),prevClk);
             remainingtime--;
-            prevClk=getClk();
         }
+        prevClk=getClk();
+
     }
     printf(" PID=%d finished\n",getpid());
     kill(getppid(),SIGUSR1);

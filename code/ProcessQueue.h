@@ -11,7 +11,9 @@ struct PCB
     char state;
     int arrivalTime;
     int waitingTime;
+    int lastStopped;
 };
+
 
 struct Node { 
     struct PCB process;
@@ -26,6 +28,12 @@ struct Queue
     int count;
 };
 
+void ProcessQueueInit(struct Queue* q)
+{
+    q->count=0;
+    q->Head=NULL;
+    q->Tail=NULL;
+}
 
 void enqueue(struct Queue* q,struct PCB data)
 {
