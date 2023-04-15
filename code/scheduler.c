@@ -15,13 +15,14 @@ void childHandler()
 {
     printf("PID of child:%d\n", runningProcess.PID);
     int status;
-    int TA=getClk()-runningProcess.arrivalTime;
+    int clk=getClk();
+    int TA=clk-runningProcess.arrivalTime;
     float value = ((float)(TA))/runningProcess.executionTime;
     float WTA = ((int)(value * 100 + .5) / 100.0);
     WTASum+=WTA;
     waitingSum+=runningProcess.waitingTime;
     floatEnqueue(&WTAqueue,WTA);
-    fprintf(outputFile,"At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,0,runningProcess.waitingTime,TA,WTA);
+    fprintf(outputFile,"At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,0,runningProcess.waitingTime,TA,WTA);
     runningProcess.id = -1;
     wait(&status);
 }
@@ -237,8 +238,9 @@ void RR()
     int stat_loc;
     int _pid;
     int _prevCLK;
-    runningProcess.id = -1;
     int clk;
+    int prevCLK=getClk();
+    runningProcess.id = -1;
     while (1)
     {
         // Adding a process to the round robin queue
@@ -251,64 +253,74 @@ void RR()
             _pcb.priority = currPD.priority;
             _pcb.id = currPD.id;
             _pcb.remaingTime = currPD.runningtime;
+            _pcb.executionTime=currPD.runningtime;
             _pcb.state = 'W';
             _pcb.arrivalTime = currPD.arrivaltime;
             printf("Arrival time: %d\n", currPD.arrivaltime);
             enqueue(&RR_Queue, _pcb);
             prevID = currPD.id;
+            
         }
+        clk=getClk();
         if (RR_Queue.count != 0)
         {
             if (runningProcess.id == -1)
             {
-
                 runningProcess = *dequeue(&RR_Queue);
+                
                 if (runningProcess.state == 'W')
                 {
 
-                    runningProcess.executionTime = getClk();
-                    runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
-                    _prevCLK = getClk();
+                    runningProcess.waitingTime = clk - runningProcess.arrivalTime;
                     int PID = fork();
                     if (PID == 0)
                     {
+                        
                         int check1 = execl("./process", (char *)&runningProcess.remaingTime, NULL);
                         if (check1 == -1)
                             printf("Unsuccessful execl with error%d\n", errno);
                     }
+                     _prevCLK = clk;
                     runningProcess.PID = PID;
                     runningProcess.state = 'R';
                     printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
-                    fprintf(outputFile,"At time %d process %d started arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+                    fprintf(outputFile,"At time %d process %d started arr %d total %d remain %d wait %d\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
 
                 }
                 else if (runningProcess.state == 'S')
                 {
                     runningProcess.state = 'R';
                     kill(runningProcess.PID, SIGCONT);
+                     _prevCLK = clk;
                     printf("resumed process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
-                    fprintf(outputFile,"At time %d process %d resumed arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+                    fprintf(outputFile,"At time %d process %d resumed arr %d total %d remain %d wait %d\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
 
                 }
             }
             else
             {
-                clk = getClk();
-                if (clk - _prevCLK == RR_TimeSlice)
+
+                
+              
+                if (getClk() - _prevCLK == RR_TimeSlice)
                 {
                     runningProcess.state = 'S';
+                    runningProcess.remaingTime-=RR_TimeSlice;
+                    if(runningProcess.remaingTime!=0)
+                    {
                     fprintf(outputFile,"At time %d process %d stopped arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
-
-                    kill(runningProcess.PID, SIGSTOP);
                     enqueue(&RR_Queue, runningProcess);
                     runningProcess.id = -1;
+                    kill(runningProcess.PID, SIGSTOP);
+                    }
                     printf("\nSwitching process..........\n");
-                    _prevCLK = clk;
+                    _prevCLK = getClk();
                 }
             }
         }
     }
 }
+
 
 int main(int argc, char *argv[])
 {
