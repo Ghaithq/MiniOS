@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-/// @brief /////alooooooo
+
 struct PCB
 {
     int priority;
@@ -12,6 +12,8 @@ struct PCB
     int arrivalTime;
     int waitingTime;
     int lastStopped;
+    int memSize;
+    int memStart;
 };
 
 
