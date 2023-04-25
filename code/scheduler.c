@@ -476,7 +476,8 @@ float waitingSum = 0;
 int memManagementAlgo;
 bool SIGUSR1INT;
 
-struct floatQueue memQueueArr[9];
+//struct floatQueue memQueueArr[9];
+struct FloatPriorityQueue memQueueArr[9];
 bool mem[1024];
 struct Queue waitingList;
 int  totalAllocetedMemory;
@@ -546,18 +547,20 @@ int buddyAllocate(int size)
         return -1;
     while(i>pos)
     {
-        int mem1=(int)*floatDequeue(&memQueueArr[i]);
+        int mem1=(int)*floatPriorityDequeue(&memQueueArr[i]);
         printf("dequeued from Queue%d start %d\n",i,mem1);
         int mem2=mem1+pow(2,i-1);
         i--;
         printf("enqueued to Queue%d start %d\n",i,mem1);  
-        floatEnqueue(&memQueueArr[i],mem1);
+        floatPriorityEnqueue(&memQueueArr[i],mem1,mem1);
         printf("enqueued to Queue%d start %d\n",i,mem2);  
-        floatEnqueue(&memQueueArr[i],mem2);
+        floatPriorityEnqueue(&memQueueArr[i],mem2,mem2);
     }
-    int start=(int)*(floatDequeue(&memQueueArr[pos]));
+    int start=(int)*(floatPriorityDequeue(&memQueueArr[pos]));
+    printf("finished buddy Allocationxxxxxxxxx\n");
     fprintf(outputFileMem,"At time %d allocated %d bytes for process %d from %d to %d\n",getClk(),size,allocatedProcessID,start,start+(int)pow(2,pos));
     totalAllocetedMemory+=pow(2,pos);
+    printf("finished buddy Allocationxxxxxxxxx\n");
     return start;
 }
 void buddyDeallocate(int start, int size)
@@ -567,7 +570,6 @@ void buddyDeallocate(int start, int size)
     size=pow(2,pos);
     totalAllocetedMemory-=size;
     fprintf(outputFileMem,"At time %d freed %d bytes from process %d from %d to %d\n",getClk(),size1,runningProcess.id,start,start+size);
-
     //floatEnqueue(&memQueueArr[pos],start);
     int dir=((start/size)%2==0)?1:-1;
     int target=start+dir*size;
@@ -575,18 +577,22 @@ void buddyDeallocate(int start, int size)
     bool flag=true;
     if(pos==8)
     {
-        floatEnqueue(&memQueueArr[pos],start);
+        floatPriorityEnqueue(&memQueueArr[pos],start,start);
         return;
     }
     while(flag && pos<8)
     {
+        struct FloatPriorityQueue tempQueueMem;
+        InitFloatPriorityQueue(&tempQueueMem);
         dir=((start/size)%2==0)?1:-1;
         target=start+dir*size;
         flag=false;
-        for(int i=0;i<memQueueArr[pos].count;i++)
+        int memQueueArrPosCount=memQueueArr[pos].count;
+  //  printf("11111111111111111111111111111111111%d\n",memQueueArrPosCount);
+        for(int i=0;i<memQueueArrPosCount;i++)
         {
 
-            temp=*floatDequeue(&memQueueArr[pos]);
+            temp=*floatPriorityDequeue(&memQueueArr[pos]);
             if(temp==target)
             {
                 printf("Merged size:%d start:%d target:%d\n",size,start,target);
@@ -598,12 +604,23 @@ void buddyDeallocate(int start, int size)
                 break;
             }
             else
-                floatEnqueue(&memQueueArr[pos],temp);
+                floatPriorityEnqueue(&tempQueueMem,temp,temp);
         }
+        while(tempQueueMem.count>0)
+        {
+            temp=*floatPriorityDequeue(&tempQueueMem);
+            if(flag)
+                floatPriorityEnqueue(&memQueueArr[pos-1],temp,temp);
+            else
+                floatPriorityEnqueue(&memQueueArr[pos],temp,temp);            
+        }
+
+
+
         if(!flag || size==256)
         {
             printf("cant merge enqueued to Queue%d start %d\n",pos,start);  
-            floatEnqueue(&memQueueArr[pos],start);
+            floatPriorityEnqueue(&memQueueArr[pos],start,start);
         }
     }
 
@@ -775,19 +792,46 @@ void SRTN()
     dummy.x[1] = 'c';
     struct processData tempPD;
     struct PCB *tempPCBMem;
-
+    SIGUSR1INT=false;
     while (1)
     {
-        SIGUSR1INT=false;
-        while(waitingList.count>0 && canAllocate(waitingList.Head->process.memSize))
-        {            
-            tempPCBMem=dequeue(&waitingList);
-            allocatedProcessID=tempPCBMem->id;
-            tempPCBMem->memStart=allocate(tempPCBMem->memSize);
-            priorityEnqueue(&Processes,*tempPCBMem,tempPCBMem->remaingTime);
-            free(tempPCBMem);
-            //printf("waiting list doesnt equal 0\n");
+        // SIGUSR1INT=false;
+        int waitingListCount=waitingList.count;
+        if(SIGUSR1INT)
+        {
+            for(int i=0;i<waitingListCount;i++)
+            {
+                tempPCBMem=dequeue(&waitingList);
+                if(tempPCBMem && canAllocate(tempPCBMem->memSize))
+                {
+                    printf("tempPCBMemID=%d ,memSize=%d, i=%d\n",tempPCBMem->id,tempPCBMem->memSize,i);
+                    printf("allocated********************\n");
+                    allocatedProcessID=tempPCBMem->id;
+                    tempPCBMem->memStart=allocate(tempPCBMem->memSize);
+                    priorityEnqueue(&Processes,*tempPCBMem,tempPCBMem->remaingTime);
+                }
+                else
+                    enqueue(&waitingList,*tempPCBMem);
+                printf("freed tempPCBMemID=%d\n",tempPCBMem->id);
+                free(tempPCBMem);
+            }
+            printf("waitingListCount=%d\n",waitingList.count);
+            SIGUSR1INT=false;
         }
+
+
+        // while(waitingList.count>0 && canAllocate(waitingList.Head->process.memSize))
+        // {            
+        //     tempPCBMem=dequeue(&waitingList);
+        //     allocatedProcessID=tempPCBMem->id;
+        //     tempPCBMem->memStart=allocate(tempPCBMem->memSize);
+        //     priorityEnqueue(&Processes,*tempPCBMem,tempPCBMem->remaingTime);
+        //     free(tempPCBMem);
+        //     //printf("waiting list doesnt equal 0\n");
+        // }
+
+
+
         // if(prevClk<getClk() && runningProcess.id!=-1)
         // {
         //     runningProcess.remaingTime--;
@@ -809,7 +853,10 @@ void SRTN()
             newProcess.memSize=tempPD.memSize;
             newProcess.state='W';
             newProcess.memStart=-1;
-            priorityEnqueue(&Processes,newProcess,newProcess.remaingTime);
+            if(waitingList.count>0 && !canAllocate(newProcess.memSize))
+                enqueue(&waitingList,newProcess);
+            else
+                priorityEnqueue(&Processes,newProcess,newProcess.remaingTime);
             prevID = newProcess.id;
             
             usleep(1);
@@ -908,7 +955,7 @@ void SRTN()
             else{
                 tempPCBMem=priorityDequeue(&Processes);
                 enqueue(&waitingList,*tempPCBMem);
-                free(tempPCBMem);
+                //free(tempPCBMem);
             }
 
         }
@@ -1019,13 +1066,13 @@ int main(int argc, char *argv[])
     ProcessQueueInit(&waitingList);
     floatQueueInit(&WTAqueue);
     for(int i=0;i<9;i++)
-        floatQueueInit(&memQueueArr[i]);
-    floatEnqueue(&memQueueArr[8],0);
-    floatEnqueue(&memQueueArr[8],256);
-    floatEnqueue(&memQueueArr[8],512);
-    floatEnqueue(&memQueueArr[8],768);
+        InitFloatPriorityQueue(&memQueueArr[i]);
+    floatPriorityEnqueue(&memQueueArr[8],0,0);
+    floatPriorityEnqueue(&memQueueArr[8],256,256);
+    floatPriorityEnqueue(&memQueueArr[8],512,512);
+    floatPriorityEnqueue(&memQueueArr[8],768,768);
     memManagementAlgo=(int)(*argv[1])-'0';
-    printf("----------------------------------------------------------%d\n",memManagementAlgo);
+    //printf("----------------------------------------------------------%d\n",memManagementAlgo);
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     signal(SIGUSR1, childHandler);
@@ -1079,14 +1126,14 @@ int main(int argc, char *argv[])
     // for(int i=0;i<9;i++)
     // {
     //     printf("MemQueue%d\n",i);
-    //     floatPrint(&memQueueArr[i]);
+    //     floatPriorityPrint(&memQueueArr[i]);
 
     // }
     // arr[1]=buddyAllocate(7);
     // for(int i=0;i<9;i++)
     // {
     //     printf("MemQueue%d\n",i);
-    //     floatPrint(&memQueueArr[i]);
+    //     //floatPriorityPrint(&memQueueArr[i]);
 
     // }
     // arr[2]=buddyAllocate(15);
@@ -1095,7 +1142,7 @@ int main(int argc, char *argv[])
     // for(int i=0;i<9;i++)
     // {
     //     printf("MemQueue%d\n",i);
-    //     floatPrint(&memQueueArr[i]);
+    //     floatPriorityPrint(&memQueueArr[i]);
 
     // }
 
@@ -1106,7 +1153,7 @@ int main(int argc, char *argv[])
     // for(int i=0;i<9;i++)
     // {
     //     printf("MemQueue%d\n",i);
-    //     floatPrint(&memQueueArr[i]);
+    //     floatPriorityPrint(&memQueueArr[i]);
 
     // }
     // buddyDeallocate(arr[2],15);
@@ -1114,7 +1161,7 @@ int main(int argc, char *argv[])
     // for(int i=0;i<9;i++)
     // {
     //     printf("MemQueue%d\n",i);
-    //     floatPrint(&memQueueArr[i]);
+    //     floatPriorityPrint(&memQueueArr[i]);
 
     // }
     
@@ -1125,7 +1172,7 @@ int main(int argc, char *argv[])
     // for(int i=0;i<9;i++)
     // {
     //     printf("MemQueue%d\n",i);
-    //     floatPrint(&memQueueArr[i]);
+    //     floatPriorityPrint(&memQueueArr[i]);
 
     // }
 }
