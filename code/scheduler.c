@@ -245,6 +245,7 @@ void RR()
     {
         // Adding a process to the round robin queue
 
+        clk=getClk();
         if ((*PG_S_shmaddr).id != prevID)
         {
             currPD = *PG_S_shmaddr;
@@ -261,7 +262,6 @@ void RR()
             prevID = currPD.id;
             
         }
-        clk=getClk();
         if (RR_Queue.count != 0)
         {
             if (runningProcess.id == -1)
@@ -299,19 +299,20 @@ void RR()
             }
             else
             {
-
                 
+       
               
-                if (getClk() - _prevCLK == RR_TimeSlice)
+                if (clk - _prevCLK == RR_TimeSlice)
                 {
-                    runningProcess.state = 'S';
                     runningProcess.remaingTime-=RR_TimeSlice;
-                    if(runningProcess.remaingTime!=0)
+                    runningProcess.state = 'S';
+                    if(runningProcess.remaingTime>0 && runningProcess.id!=-1)
                     {
-                    fprintf(outputFile,"At time %d process %d stopped arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+                    fprintf(outputFile,"At time %d process %d stopped arr %d total %d remain %d wait %d\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
                     enqueue(&RR_Queue, runningProcess);
                     runningProcess.id = -1;
-                    kill(runningProcess.PID, SIGSTOP);
+                    runningProcess.state=' ';
+                    kill(runningProcess.PID, SIGUSR2);
                     }
                     printf("\nSwitching process..........\n");
                     _prevCLK = getClk();
