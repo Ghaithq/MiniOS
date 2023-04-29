@@ -61,6 +61,7 @@ int main(int argc, char * argv[])
     //sleep(5);
     char *algorithmAddress=&algorithm;
 
+
     //------------------Creating clock and scheduling processes----------------//
     if(fork()==0)
         execl("./clk",argv[0],NULL);
