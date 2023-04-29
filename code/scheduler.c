@@ -1079,90 +1079,129 @@ void RR()
     int _pid;
     int _prevCLK;
     int clk;
-    int prevCLK=getClk();
+    int prevCLK = getClk();
+    struct PCB *tempPCBMem;
     runningProcess.id = -1;
+    SIGUSR1INT = false;
     while (1)
     {
         // Adding a process to the round robin queue
 
-        clk=getClk();
+        clk = getClk();
+
+        int waitingListCount = waitingList.count;
+        if (SIGUSR1INT)
+        {
+            for (int i = 0; i < waitingListCount; i++)
+            {
+                tempPCBMem = dequeue(&waitingList);
+                if (tempPCBMem && canAllocate(tempPCBMem->memSize))
+                {
+                    printf("tempPCBMemID=%d ,memSize=%d, i=%d\n", tempPCBMem->id, tempPCBMem->memSize, i);
+                    printf("allocated********************\n");
+                    allocatedProcessID = tempPCBMem->id;
+                    tempPCBMem->memStart = allocate(tempPCBMem->memSize);
+                    enqueue(&RR_Queue, *tempPCBMem);
+                }
+                else
+                    enqueue(&waitingList, *tempPCBMem);
+                printf("freed tempPCBMemID=%d\n", tempPCBMem->id);
+                free(tempPCBMem);
+            }
+            printf("waitingListCount=%d\n", waitingList.count);
+            SIGUSR1INT = false;
+        }
         if ((*PG_S_shmaddr).id != prevID)
         {
             currPD = *PG_S_shmaddr;
-            if(msgsnd(PG_S_msgqid, &_buffer, sizeof(_buffer), !IPC_NOWAIT)==-1)
-             printf("error happened in recv\n");
+            if (msgsnd(PG_S_msgqid, &_buffer, sizeof(_buffer), !IPC_NOWAIT) == -1)
+                printf("error happened in recv\n");
             _pcb.priority = currPD.priority;
             _pcb.id = currPD.id;
             _pcb.remaingTime = currPD.runningtime;
-            _pcb.executionTime=currPD.runningtime;
+            _pcb.executionTime = currPD.runningtime;
             _pcb.state = 'W';
             _pcb.arrivalTime = currPD.arrivaltime;
-            _pcb.memSize=currPD.memSize;
-            _pcb.memStart=-1;
+            _pcb.memSize = currPD.memSize;
+            _pcb.memStart = -1;
             printf("Arrival time: %d\n", currPD.arrivaltime);
-            enqueue(&RR_Queue, _pcb);
             prevID = currPD.id;
-            
+            if (waitingList.count > 0 && !canAllocate(_pcb.memSize))
+                enqueue(&waitingList, _pcb);
+            else
+                enqueue(&RR_Queue, _pcb);
         }
         if (RR_Queue.count != 0)
         {
             if (runningProcess.id == -1)
             {
                 runningProcess = *dequeue(&RR_Queue);
-                
+
                 if (runningProcess.state == 'W')
                 {
-                    
-                    runningProcess.waitingTime = clk - runningProcess.arrivalTime;
-                    int PID = fork();
-                    if (PID == 0)
+                    if (runningProcess.memStart == -1)
                     {
-                        
-                        int check1 = execl("./process", (char *)&runningProcess.remaingTime, NULL);
-                        if (check1 == -1)
-                            printf("Unsuccessful execl with error%d\n", errno);
-                    }
-                     _prevCLK = clk;
-                    runningProcess.PID = PID;
-                    runningProcess.state = 'R';
-                    printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
-                    fprintf(outputFile,"At time %d process %d started arr %d total %d remain %d wait %d\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
+                        allocatedProcessID = runningProcess.id;
+                        if (runningProcess.memStart = allocate(runningProcess.memSize) == -1)
+                        {
+                            enqueue(&waitingList, runningProcess);
+                            runningProcess.id = -1;
+                        }
+                        else
+                        {
+                            runningProcess.waitingTime = clk - runningProcess.arrivalTime;
+                            int PID = fork();
 
+
+                            if (PID == 0)
+                            {
+
+                                int check1 = execl("./process", (char *)&runningProcess.remaingTime, NULL);
+                                if (check1 == -1)
+                                    printf("Unsuccessful execl with error%d\n", errno);
+                            }
+                            _prevCLK = clk;
+                            runningProcess.PID = PID;
+                            runningProcess.state = 'R';
+                            printf(" a process started ID= %d , PID = %d , \n", runningProcess.id, runningProcess.PID);
+                            fprintf(outputFile, "At time %d process %d started arr %d total %d remain %d wait %d\n", clk, runningProcess.id, runningProcess.arrivalTime, runningProcess.executionTime, runningProcess.remaingTime, runningProcess.waitingTime);
+                        }
+                    }
                 }
                 else if (runningProcess.state == 'S')
                 {
                     runningProcess.state = 'R';
                     kill(runningProcess.PID, SIGCONT);
-                     _prevCLK = clk;
+                    _prevCLK = clk;
                     printf("resumed process id:%d , PID:%d\n", runningProcess.id, runningProcess.PID);
-                    fprintf(outputFile,"At time %d process %d resumed arr %d total %d remain %d wait %d\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
-
+                    fprintf(outputFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n", clk, runningProcess.id, runningProcess.arrivalTime, runningProcess.executionTime, runningProcess.remaingTime, runningProcess.waitingTime);
                 }
             }
             else
             {
-                
-       
-              
                 if (clk - _prevCLK == RR_TimeSlice)
                 {
-                    runningProcess.remaingTime-=RR_TimeSlice;
-                    runningProcess.state = 'S';
-                    if(runningProcess.remaingTime>0 && runningProcess.id!=-1)
+                    if(canAllocate(RR_Queue.Head->process.memSize) || RR_Queue.Head->process.memStart != -1)
                     {
-                    fprintf(outputFile,"At time %d process %d stopped arr %d total %d remain %d wait %d\n",clk,runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
-                    enqueue(&RR_Queue, runningProcess);
-                    runningProcess.id = -1;
-                    runningProcess.state=' ';
-                    kill(runningProcess.PID, SIGUSR2);
+                    runningProcess.remaingTime -= RR_TimeSlice;
+                    runningProcess.state = 'S';
+                    if (runningProcess.remaingTime > 0 && runningProcess.id != -1)
+                    {
+                        fprintf(outputFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n", clk, runningProcess.id, runningProcess.arrivalTime, runningProcess.executionTime, runningProcess.remaingTime, runningProcess.waitingTime);
+                        enqueue(&RR_Queue, runningProcess);
+                        runningProcess.id = -1;
+                        runningProcess.state = ' ';
+                        kill(runningProcess.PID, SIGUSR2);
                     }
                     printf("\nSwitching process..........\n");
                     _prevCLK = getClk();
+                    }
                 }
             }
         }
     }
 }
+
 
 
 int main(int argc, char *argv[])
