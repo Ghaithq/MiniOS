@@ -1,10 +1,4 @@
 CPU utilization = 100% 
-<<<<<<< HEAD
-Avg WTA = 7.435833
-Avg Waiting = 15.666667
-Std WTA == 3.077710
-=======
-Avg WTA = 6.978750
-Avg Waiting = 32.125000
-Std WTA == 4.054066
->>>>>>> b7ad5765db1fdf35d8508b4b0aefdabc884ce096
+Avg WTA = 17.216249
+Avg Waiting = 23.562500
+Std WTA == 13.605576

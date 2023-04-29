@@ -14,7 +14,6 @@ void StopHandler()
 {
     stop=true;
     last=getClk();
-    fflush(stdout);
 }
 int main(int agrc, char * argv[])
 {
