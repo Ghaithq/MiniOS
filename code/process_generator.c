@@ -50,13 +50,20 @@ int main(int argc, char * argv[])
     scanf("%c",&memManagementAlgo);
     
     char algorithm;
-    
+    int timeSlice;
+
+
     printf("choose a scheduling algorithm:\n");
     printf("1-Highest Priority First\n");
     printf("2-Shortest Remaining Time Next\n");
     printf("3-Round Robin\n");
     scanf("%c",&algorithm);
     scanf("%c",&algorithm);
+    if(algorithm=='3')
+    {
+        printf("enter a time slice for round robin\n");
+        scanf("%d",&timeSlice);
+    }
     printf("memManagementAlgo: %c, algorithm=%c\n",memManagementAlgo,algorithm);
     //sleep(5);
     char *algorithmAddress=&algorithm;
@@ -66,8 +73,12 @@ int main(int argc, char * argv[])
         execl("./clk",argv[0],NULL);
     initClk();
     if(fork()==0)
-        execl("./scheduler",algorithmAddress,&memManagementAlgo,NULL);
-    
+    {   
+        if(algorithm=='3')
+            execl("./scheduler",algorithmAddress,&memManagementAlgo,(char*)&timeSlice,NULL);
+        else 
+            execl("./scheduler",algorithmAddress,&memManagementAlgo,NULL);
+    }
 
     //------------------Creating a shm with Scheduler------------------//
     PG_S_shmid = shmget(SHKEY_PG_S, sizeof(struct processData), IPC_CREAT | 0666);
