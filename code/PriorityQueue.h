@@ -65,6 +65,11 @@ struct PCB*  priorityDequeue(struct PriorityQueue* q)
 
     q->count--;
     q->Head=q->Head->next;
+    if(q->count==0)
+    {
+        q->Head=NULL;
+        q->Tail=NULL;
+    }
     free(tmp);
     return p;
 }

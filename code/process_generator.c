@@ -43,22 +43,30 @@ int main(int argc, char * argv[])
     // 4. Use this function after creating the clock process to initialize clock
     //------------------for the chosen scheduling algorithm---------------//
     //signal(SIGINT,clearResources);
+    printf("choose a memory management algorithm:\n");
+    printf("1-First Fit\n");
+    printf("2-Buddy\n");
+    char memManagementAlgo;
+    scanf("%c",&memManagementAlgo);
+    
+    char algorithm;
+    
     printf("choose a scheduling algorithm:\n");
     printf("1-Highest Priority First\n");
     printf("2-Shortest Remaining Time Next\n");
     printf("3-Round Robin\n");
-    char algorithm;
     scanf("%c",&algorithm);
-    
+    scanf("%c",&algorithm);
+    printf("memManagementAlgo: %c, algorithm=%c\n",memManagementAlgo,algorithm);
+    //sleep(5);
     char *algorithmAddress=&algorithm;
-    
 
     //------------------Creating clock and scheduling processes----------------//
     if(fork()==0)
-        execv("./clk",argv);
+        execl("./clk",argv[0],NULL);
     initClk();
     if(fork()==0)
-        execv("./scheduler",&algorithmAddress);
+        execl("./scheduler",algorithmAddress,&memManagementAlgo,NULL);
     
 
     //------------------Creating a shm with Scheduler------------------//
@@ -106,7 +114,7 @@ int main(int argc, char * argv[])
     int p;
     while(1)
     {
-
+        //////////////////////////////////handle comment line in start of file
         fscanf(pFile,"%d",&p);
         process.id=p;
         fscanf(pFile,"%d",&p);
@@ -115,15 +123,17 @@ int main(int argc, char * argv[])
         process.runningtime=p;
         fscanf(pFile,"%d",&p);
         process.priority=p;
+        fscanf(pFile,"%d",&p);
+        process.memSize=p;
         if(feof(pFile))
             break;
         while(process.arrivaltime!=getClk());
         (*PG_S_shmaddr)=process;
+        printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
         msgrcv(PG_S_msgqid,&dummy,sizeof(dummy),0,!IPC_NOWAIT);
         //usleep(1000);
 
         printf("*PG_S_shmaddr.id=%d\n",(*PG_S_shmaddr).id);
-        printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
     }
     while(1);
     // TODO Generation Main Loop

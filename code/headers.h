@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <time.h>
 #include <math.h>
-#include "IntQueue.h"
+#include "FloatPriorityQueue.h"
 
 
 
@@ -31,6 +31,7 @@ struct processData
     int priority;
     int runningtime;
     int id;
+    int memSize;
 };
 
 

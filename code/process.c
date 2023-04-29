@@ -44,7 +44,7 @@ int main(int agrc, char * argv[])
         }
 
     }
-    printf(" PID=%d finished\n",getpid());
+    printf(" PID=%d finished at time=%d\n",getpid(),getClk());
     kill(getppid(),SIGUSR1);
     printf("Parent PID=%d\n",getppid());
     return 0;
