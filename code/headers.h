@@ -24,6 +24,7 @@ typedef short bool;
 #define SHKEY 300
 #define SHKEY_PG_S 37
 #define MSGKEY_PG_S 39
+#define SHKEY_S_P 41
 
 struct processData
 {
