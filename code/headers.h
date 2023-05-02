@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <time.h>
 #include <math.h>
+#include <string.h>
 #include "FloatPriorityQueue.h"
 
 

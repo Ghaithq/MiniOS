@@ -1,4 +1,3 @@
-
 #include "headers.h"
 
 int PG_S_shmid;                   // shared memory id between process generator and scheduler
@@ -17,17 +16,20 @@ float waitingSum = 0;
 int memManagementAlgo;
 bool SIGUSR1INT;
 
-//struct floatQueue memQueueArr[9];
-struct FloatPriorityQueue memQueueArr[9];
-bool mem[1024];
+struct FloatPriorityQueue memQueueArr[9]; //Datastructre used for buddy algorith
+bool mem[1024];                   //Free bit map for first Fit algorith
 struct Queue waitingList;
 int  totalAllocetedMemory;
 int allocatedProcessID;
+int totalProcessesRuntime=0;
+int totalProcesses;
+int totalFinishedProcesses;
 
-
+//------------------Memory management methods------------------//
 int firstFitAllocate(int size)
 {
     int c=0;
+    //------------------looping on the free bit map to check whether there is enough memory------------------//
     for(int i=0;i<1024;i++)
     {
         c=0;
@@ -86,8 +88,11 @@ int buddyAllocate(int size)
     }
     if(i>=9)
         return -1;
+    //------------------partitioning until the required memory size is found ------------------//
+
     while(i>pos)
     {
+        
         int mem1=(int)*floatPriorityDequeue(&memQueueArr[i]);
         printf("dequeued from Queue%d start %d\n",i,mem1);
         int mem2=mem1+pow(2,i-1);
@@ -111,7 +116,6 @@ void buddyDeallocate(int start, int size)
     size=pow(2,pos);
     totalAllocetedMemory-=size;
     fprintf(outputFileMem,"At time %d freed %d bytes from process %d from %d to %d\n",getClk(),size1,runningProcess.id,start,start+size);
-    //floatEnqueue(&memQueueArr[pos],start);
     int dir=((start/size)%2==0)?1:-1;
     int target=start+dir*size;
     int temp;
@@ -121,6 +125,7 @@ void buddyDeallocate(int start, int size)
         floatPriorityEnqueue(&memQueueArr[pos],start,start);
         return;
     }
+    //------------------the larger loop traverses the memQueueArr which contains all the memory segmants queues------------------//
     while(flag && pos<8)
     {
         struct FloatPriorityQueue tempQueueMem;
@@ -129,7 +134,9 @@ void buddyDeallocate(int start, int size)
         target=start+dir*size;
         flag=false;
         int memQueueArrPosCount=memQueueArr[pos].count;
-  //  printf("11111111111111111111111111111111111%d\n",memQueueArrPosCount);
+        //------------------the smaller loop traveses the available segmants in the current memQueue and looks for the segmant that can be------------------//
+        //------------------merged with the recently deallocated or last merged segmant ------------------//
+
         for(int i=0;i<memQueueArrPosCount;i++)
         {
 
@@ -147,6 +154,7 @@ void buddyDeallocate(int start, int size)
             else
                 floatPriorityEnqueue(&tempQueueMem,temp,temp);
         }
+        //------------------returning the unmerged segments to their original memQueue------------------//
         while(tempQueueMem.count>0)
         {
             temp=*floatPriorityDequeue(&tempQueueMem);
@@ -157,7 +165,7 @@ void buddyDeallocate(int start, int size)
         }
 
 
-
+        //------------------checking whether further merging can occur------------------//
         if(!flag || size==256)
         {
             printf("cant merge enqueued to Queue%d start %d\n",pos,start);  
@@ -166,6 +174,17 @@ void buddyDeallocate(int start, int size)
     }
 
 
+}
+bool buddyCanAllocate(int size)
+{
+    int pos=ceil(log2(size));
+    while(pos<=8)
+    {
+        if(memQueueArr[pos].count!=0)
+            return true;
+        pos++;
+    }
+    return false;
 }
 int allocate(int size)
 {
@@ -183,23 +202,24 @@ void deallocate(int start,int size)
 }
 bool canAllocate(int size)
 {
-    int pos=ceil(log2(size));
     if(memManagementAlgo==1)
         return firstFitCanAllocate(size);
     else
-        return (1024-totalAllocetedMemory>=pow(2,pos));
+        return buddyCanAllocate(size);
 }
 
+
+
+//------------------Signal Handlers------------------//
 void childHandler()
 {
+    totalProcessesRuntime+=runningProcess.executionTime;
+    totalFinishedProcesses++;
     SIGUSR1INT=true;
     printf("PID of child:%d\n", runningProcess.PID);
     int status;
     int clk=getClk();
-    /////////////////////deallocating//////////////////////////////////////////////////////
     deallocate(runningProcess.memStart,runningProcess.memSize);
-    ///////////////////////////////////////////////////////////////////////////////////////
-
     int TA=clk-runningProcess.arrivalTime;
     float value = ((float)(TA))/runningProcess.executionTime;
     float WTA = ((int)(value * 100 + .5) / 100.0);
@@ -210,7 +230,6 @@ void childHandler()
     runningProcess.id = -1;
     wait(&status);
 }
-
 void exitHandler()
 {
 
@@ -226,11 +245,16 @@ void exitHandler()
     }
     stdWTA/=(count-1);
     stdWTA=sqrt((double)stdWTA);
+    float util=(100*totalProcessesRuntime)/(float)(getClk());
     FILE* averageFile=fopen("scheduler.perf","w");
-    fprintf(averageFile,"CPU utilization = 100%% \n");
-    fprintf(averageFile,"Avg WTA = %f\n",avgWTA);
-    fprintf(averageFile,"Avg Waiting = %f\n",avgWaiting);
-    fprintf(averageFile,"Std WTA == %f\n",stdWTA);
+    util=((int)(util * 100 + .5) / 100.0);
+    fprintf(averageFile,"CPU utilization = %.2f%% \n",util);
+    avgWTA=((int)(avgWTA * 100 + .5) / 100.0);
+    fprintf(averageFile,"Avg WTA = %.2f\n",avgWTA);
+    avgWaiting=((int)(avgWaiting * 100 + .5) / 100.0);
+    fprintf(averageFile,"Avg Waiting = %.2f\n",avgWaiting);
+    stdWTA=((int)(stdWTA * 100 + .5) / 100.0);
+    fprintf(averageFile,"Std WTA == %.2f\n",stdWTA);
     
     
 
@@ -247,6 +271,8 @@ struct msgBuffDummy
     int mtype;
 };
 
+
+//------------------Scheduling Algorithms------------------//
 void HPF()
 {
     struct PriorityQueue processesPQ;
@@ -264,8 +290,8 @@ void HPF()
     struct processData tempPD; 
     while (1)
     {
-        // scheduling incoming new processes
-        int waitingTime = 0;
+        
+        //------------------Recieving arriving processes from process generator------------------//
         while ((*PG_S_shmaddr).id != prevID)
         {
             tempPD = *PG_S_shmaddr;
@@ -280,12 +306,11 @@ void HPF()
             newProcess.arrivalTime = tempPD.arrivaltime;
             newProcess.arrivalTime;
             newProcess.executionTime=tempPD.runningtime;
-            ///////////////setting memory size //////////////////////////////////////////
             newProcess.memSize=tempPD.memSize;
             priorityEnqueue(&processesPQ, newProcess, newProcess.priority);
             usleep(1);
         }
-
+        //------------------Starting the scheduled process------------------//
         if (runningProcess.id == -1)
         {
             struct PCB *tempProcess = priorityDequeue(&processesPQ);
@@ -296,9 +321,8 @@ void HPF()
                 printf("priority of running process: %d\n", tempProcess->priority);
                 runningProcess = *tempProcess;
                 char runTime = runningProcess.remaingTime;
-                //////////////////////allocating memory//////////////////////////////////////////////////////
+                //------------------allocating memory before it starts------------------//
                 runningProcess.memStart=allocate(runningProcess.memSize);
-                ////////////////////////////////////////////////////////////////////////////////////////////
                 char *runtimeAddress = &runTime;
                 int PID = fork();
                 if (PID == 0)
@@ -313,13 +337,11 @@ void HPF()
                 runningProcess.state = 'R';
                 runningProcess.arrivalTime;
                 runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
-                //waitingSum += runningProcess.waitingTime;
                 fprintf(outputFile,"At time %d process %d started arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
             }
         }
     }
 }
-
 void SRTN()
 {
     struct PriorityQueue Processes;
@@ -336,7 +358,6 @@ void SRTN()
     SIGUSR1INT=false;
     while (1)
     {
-        // SIGUSR1INT=false;
         int waitingListCount=waitingList.count;
         if(SIGUSR1INT)
         {
@@ -361,26 +382,9 @@ void SRTN()
         }
 
 
-        // while(waitingList.count>0 && canAllocate(waitingList.Head->process.memSize))
-        // {            
-        //     tempPCBMem=dequeue(&waitingList);
-        //     allocatedProcessID=tempPCBMem->id;
-        //     tempPCBMem->memStart=allocate(tempPCBMem->memSize);
-        //     priorityEnqueue(&Processes,*tempPCBMem,tempPCBMem->remaingTime);
-        //     free(tempPCBMem);
-        //     //printf("waiting list doesnt equal 0\n");
-        // }
-
-
-
-        // if(prevClk<getClk() && runningProcess.id!=-1)
-        // {
-        //     runningProcess.remaingTime--;
-        //     prevClk=getClk();
-        // }
-
+        //------------------Recieving arriving processes from process generator------------------//
         while ((*PG_S_shmaddr).id != prevID)
-        { //////////a lock must be put on the shared memory because if more than one process arrived at the same time
+        { 
             tempPD = *PG_S_shmaddr;
             if (-1 == msgsnd(PG_S_msgqid, &dummy, sizeof(dummy), !IPC_NOWAIT))
                 printf("error happened in recv\n");
@@ -402,39 +406,32 @@ void SRTN()
             
             usleep(1);
         }
-
+        //------------------Starting the scheduled process------------------//
         if (runningProcess.id == -1 && !SIGUSR1INT)
         {
-            // printf("-----------------------------------------------------\n");
             struct PCB *processPtr;
-            /////////////////////////////////
             
             processPtr = priorityDequeue(&Processes);
-                //printf("waiting list equals zero\n");
-
-            //Deallocated =false;
-            /////////////////////////////////
             if (processPtr )
             {
 
                 runningProcess = *processPtr;
                 free(processPtr);
+                //------------------Checking whether the process has been forked------------------//
                 if (runningProcess.state == 'W')
                 {
-                    ////////////////////////////////////////////////////////////////////
-                    //if(memStart==-1)
+                  //------------------Checking whether the process has already been allocated and whether it can be allocated------------------//
                     if(runningProcess.memStart==-1)
                     {
                         allocatedProcessID=runningProcess.id;
                         runningProcess.memStart=allocate(runningProcess.memSize);
                     }
+                    //------------------adding the processes that can't be allocated to the waiting list------------------//
                     if(runningProcess.memStart==-1)
                     {
-                      //  printf("no enough memory\n");
                         enqueue(&waitingList,runningProcess);
                         runningProcess.id=-1;
                     }
-                    /////////////////////////////////////////////////////////////////////
                     else{
                         runningProcess.waitingTime = getClk() - runningProcess.arrivalTime;
                         char runTime = runningProcess.remaingTime;
@@ -455,7 +452,6 @@ void SRTN()
                 }
                 else if (runningProcess.state == 'S' && !SIGUSR1INT)
                 {
-                    //while(prevClk==getClk());
                     runningProcess.state='R';
                     kill(runningProcess.PID,SIGCONT);
                     prevClk=getClk();
@@ -464,20 +460,16 @@ void SRTN()
                     fprintf(outputFile,"At time %d process %d resumed arr %d total %d remain %d wait %d\n",getClk(),runningProcess.id,runningProcess.arrivalTime,runningProcess.executionTime,runningProcess.remaingTime,runningProcess.waitingTime);
 
                 }
-                // else if(SIGUSR1INT)
-                // {
-                //     priorityEnqueue(&Processes,runningProcess,runningProcess.remaingTime);
-                //     runningProcess.id=-1;
-                //     printf("interupted==========================\n");
-                // }
+                
             }
         }
-
+        //------------------Keeping track of the remaining time of the running process------------------//
         if(prevClk<getClk() && runningProcess.id!=-1)
         {
             runningProcess.remaingTime--;
             prevClk=getClk();
         }
+        //------------------Checking whether a premption can occur------------------//
         if (runningProcess.id != -1 && Processes.Head && Processes.Head->process.remaingTime < runningProcess.remaingTime)
         {
             if(canAllocate(Processes.Head->process.memSize) || Processes.Head->process.memStart!=-1){
@@ -486,7 +478,6 @@ void SRTN()
                 printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
                 runningProcess.state='S';
                 runningProcess.lastStopped=getClk();
-                //usleep(1);
                 kill(runningProcess.PID,SIGUSR2);
                 prevClk=getClk();
                 priorityEnqueue(&Processes,runningProcess,runningProcess.remaingTime);
@@ -504,10 +495,6 @@ void SRTN()
 
     }
 }
-
-
-
-
 void RR(int timeSlice)
 {
     struct Queue RR_Queue = {NULL, NULL, 0};
@@ -525,7 +512,6 @@ void RR(int timeSlice)
     SIGUSR1INT = false;
     while (1)
     {
-        // Adding a process to the round robin queue
 
         
 
@@ -550,6 +536,7 @@ void RR(int timeSlice)
             
             SIGUSR1INT = false;
         }
+        //------------------Recieving arriving processes from process generator------------------//
         if ((*PG_S_shmaddr).id != prevID)
         {
             currPD = *PG_S_shmaddr;
@@ -570,19 +557,22 @@ void RR(int timeSlice)
             printf("Queue count: %d\n",RR_Queue.count);
         }
         clk = getClk();
+        //------------------Starting a new process------------------//
         if (RR_Queue.count != 0)
         {
             if (runningProcess.id == -1)
             {
                 runningProcess = *dequeue(&RR_Queue);
-
+                //------------------Checking whether the process has been forked------------------//
                 if (runningProcess.state == 'W')
                 {
+                    //------------------Checking whether the process has already been allocated and whether it can be allocated------------------//
                     if (runningProcess.memStart == -1)
                     {
                         allocatedProcessID = runningProcess.id;
                         runningProcess.memStart = allocate(runningProcess.memSize);
                     }
+                    //------------------adding the processes that can't be allocated to the waiting list------------------//
                     if (runningProcess.memStart == -1)
                     {
                         enqueue(&waitingList, runningProcess);
@@ -618,6 +608,7 @@ void RR(int timeSlice)
             }
             else
             {
+                //------------------Checking whether a premption can occur------------------//
                 if (((clk - _prevCLK)%RR_TimeSlice==0)&& ((clk - _prevCLK) !=0) && runningProcess.id != -1)
                 {
                     
@@ -628,7 +619,7 @@ void RR(int timeSlice)
                         fprintf(outputFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n", clk, runningProcess.id, runningProcess.arrivalTime, runningProcess.executionTime, runningProcess.remaingTime, runningProcess.waitingTime);
                         enqueue(&RR_Queue, runningProcess);
                         runningProcess.id = -1;
-                        runningProcess.state = ' ';
+                        runningProcess.state = 'S';
                         kill(runningProcess.PID, SIGUSR2);
                     }
                     printf("\nSwitching process..........\n");
@@ -652,8 +643,6 @@ int main(int argc, char *argv[])
     floatPriorityEnqueue(&memQueueArr[8],512,512);
     floatPriorityEnqueue(&memQueueArr[8],768,768);
     memManagementAlgo=(int)(*argv[1])-'0';
-    //printf("----------------------------------------------------------%d\n",memManagementAlgo);
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
     signal(SIGUSR1, childHandler);
     signal(SIGINT,exitHandler);
@@ -676,20 +665,19 @@ int main(int argc, char *argv[])
 
     initClk();
     prevID = -1;
-
+    //------------------Getting the msgq between the process generator and scheduler------------------//
     key_t key_id = ftok("keyfile", MSGKEY_PG_S);
     PG_S_msgqid = msgget(key_id, 0666 | IPC_CREAT);
 
 
-
+    //------------------Opening the output file scheduler.log and memory.log------------------//
     outputFile=fopen("scheduler.log","w");
     outputFileMem=fopen("memory.log","w");
     
     if(outputFile==NULL)
         printf("NULL\n");
-    //fprintf(outputFile,"kdksjvbdkjfbvkdfjbvkdfba.jdfnv,dskfjvbs,djhfvb\n");
-
-   // HPF();
+    
+    //------------------Calling the required algorithm------------------//
 
     if (*argv[0] == '1')
         HPF();
@@ -702,6 +690,5 @@ int main(int argc, char *argv[])
         RR(timeSlice);
     }
     fclose(outputFile);
-    //destroyClk(true);
 
 }

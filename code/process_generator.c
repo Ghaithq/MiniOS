@@ -2,19 +2,20 @@
 int PG_S_shmid;
 int PG_S_msgqid;
 
-
+//------------------Clearing ipc resources------------------//
 void clearResources()
 {
-    //TODO Clears all resources in case of interruption
+    //------------------Deleting the shared memory------------------//
     if(-1 == (shmctl(PG_S_shmid, IPC_RMID, NULL)))
     {   
         perror("shmctl");
-    }         
+    }  
+    //------------------Deleting the  msgq------------------//      
     if(-1 == (msgctl(PG_S_msgqid, IPC_RMID, NULL)))
     {   
         printf("error in deleting msgq\n");
     } 
-
+    //------------------Sending SIGINT to children processes------------------//
     killpg(getpgrp(),SIGINT);
     exit(0);
 }
@@ -36,34 +37,46 @@ int main(int argc, char * argv[])
 
 
     
-    // TODO Initialization
-    // 1. Read the input files.
-    // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
-    // 3. Initiate and create the scheduler and clock processes.
-    // 4. Use this function after creating the clock process to initialize clock
-    //------------------for the chosen scheduling algorithm---------------//
-    //signal(SIGINT,clearResources);
-    printf("choose a memory management algorithm:\n");
-    printf("1-First Fit\n");
-    printf("2-Buddy\n");
+    
     char memManagementAlgo;
-    scanf("%c",&memManagementAlgo);
+
     
     char algorithm;
     int timeSlice;
 
 
-    printf("choose a scheduling algorithm:\n");
-    printf("1-Highest Priority First\n");
-    printf("2-Shortest Remaining Time Next\n");
-    printf("3-Round Robin\n");
-    scanf("%c",&algorithm);
-    scanf("%c",&algorithm);
+    
+    algorithm=argv[3][0];
     if(algorithm=='3')
     {
-        printf("enter a time slice for round robin\n");
-        scanf("%d",&timeSlice);
+
+        timeSlice=atoi(argv[5]);
+        memManagementAlgo=argv[7][0];
     }
+    else
+        memManagementAlgo=argv[5][0];
+    
+printf("argc=%d\n",argc);
+    for(int i=0;i<argc;i++)
+    {
+        if(!strcmp(argv[i],"-q"))
+        {
+            timeSlice=atoi(argv[++i]);
+            printf("timeSliced=%d\n",timeSlice);
+        }
+        if(!strcmp(argv[i],"-sch"))
+        {
+            algorithm=argv[++i][0];
+            printf("algorithm=%c\n",algorithm);
+        }
+        if(!strcmp(argv[i],"-mem"))
+        {
+            memManagementAlgo=argv[++i][0];
+            printf("memManagementAlgo=%c\n",memManagementAlgo);
+        }
+        
+    }
+
     printf("memManagementAlgo: %c, algorithm=%c\n",memManagementAlgo,algorithm);
     //sleep(5);
     char *algorithmAddress=&algorithm;
@@ -107,7 +120,7 @@ int main(int argc, char * argv[])
 
     
 
-    FILE* pFile=fopen("processes.txt","r");
+    FILE* pFile=fopen(argv[1],"r");
     printf("current time is %d\n", x);
     struct processData process;
     if(pFile==NULL)
@@ -121,13 +134,29 @@ int main(int argc, char * argv[])
     struct msgBuffDummy dummy;
     dummy.mtype=0;
     dummy.x[1]='c';
-
+    char  ignore [1024];
+    int size=100;
+    char *c=(char*)malloc(10);
     int p;
     while(1)
     {
-        //////////////////////////////////handle comment line in start of file
-        fscanf(pFile,"%d",&p);
+        
+        fscanf(pFile,"%s",c);
+        //------------------Checking whether the line is commented------------------//
+        if(c[0]=='#')
+        {
+            printf(
+                "##############################\n"
+            );
+            fgets(ignore,sizeof(ignore),pFile);
+            if(feof(pFile))
+                break;
+            continue;
+        }
+        p=atoi(c);
         process.id=p;
+        // fscanf(pFile,"%d",&p);
+        // process.id=p;
         fscanf(pFile,"%d",&p);
         process.arrivaltime=p;
         fscanf(pFile,"%d",&p);
@@ -138,18 +167,13 @@ int main(int argc, char * argv[])
         process.memSize=p;
         if(feof(pFile))
             break;
+        //------------------Waiting until the arrival time of process comes then sending it to the scheduler------------------//
         while(process.arrivaltime!=getClk());
         (*PG_S_shmaddr)=process;
         printf("id=%d , arrival time=%d ,clock=%d\n",process.id,process.arrivaltime,getClk());
         msgrcv(PG_S_msgqid,&dummy,sizeof(dummy),0,!IPC_NOWAIT);
-        //usleep(1000);
-
         printf("*PG_S_shmaddr.id=%d\n",(*PG_S_shmaddr).id);
     }
     while(1);
-    // TODO Generation Main Loop
-    // 5. Create a data structure for processes and provide it with its parameters.
-    // 6. Send the information to the scheduler at the appropriate time.
-    // 7. Clear clock resources
-    //destroyClk(true);
+    
 }
